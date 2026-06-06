@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resort Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/styles.css">
+</head>
+<body>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+
+  <header class="hero">
+    <p class="kicker">DreamVacationWeek</p>
+    <h1>Resort Explorer</h1>
+    <p class="lead">Explora, filtra y ordena resorts para encontrar tu destino ideal.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel filters" aria-labelledby="filters-title">
+      <h2 id="filters-title">Filtros</h2>
+
+      <div class="grid-3">
+        <label>
+          <span class="field-label">Continente</span>
+          <select id="continentFilter">
+            <option value="">Todos</option>
+          </select>
+        </label>
+
+        <label>
+          <span class="field-label">País</span>
+          <select id="countryFilter">
+            <option value="">Todos</option>
+          </select>
+        </label>
+
+        <label>
+          <span class="field-label">Zona</span>
+          <select id="zoneFilter">
+            <option value="">Todas</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid-3">
+        <label>
+          <span class="field-label">Código</span>
+          <input id="codeFilter" type="text" maxlength="8" placeholder="Ej: FDB">
+        </label>
+
+        <label>
+          <span class="field-label">Nombre contiene</span>
+          <input id="nameFilter" type="text" placeholder="Ej: beach">
+        </label>
+
+        <label>
+          <span class="field-label">Ciudad/ubicación contiene</span>
+          <input id="cityFilter" type="text" placeholder="Ej: Miami">
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="resetFilters" type="button">Limpiar filtros</button>
+      </div>
+    </section>
+
+    <section class="panel results" aria-labelledby="results-title">
+      <div class="results-head">
+        <h2 id="results-title">Resorts</h2>
+        <div class="results-actions">
+          <button id="exportCsv" class="icon-button" type="button" aria-label="Exportar CSV" title="Exportar CSV">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 3v10.5"></path>
+              <path d="m7.5 9 4.5 4.5L16.5 9"></path>
+              <path d="M5 15.5v2A2.5 2.5 0 0 0 7.5 20h9A2.5 2.5 0 0 0 19 17.5v-2"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort-field="codigo" aria-sort="none">
+                <button class="sort-trigger" type="button">Código</button>
+              </th>
+              <th data-sort-field="nombre" aria-sort="ascending">
+                <button class="sort-trigger" type="button">Nombre</button>
+              </th>
+              <th data-sort-field="ubicacion" aria-sort="none">
+                <button class="sort-trigger" type="button">Ubicación</button>
+              </th>
+              <th data-sort-field="zona" aria-sort="none">
+                <button class="sort-trigger" type="button">Zona</button>
+              </th>
+              <th data-sort-field="pais" aria-sort="none">
+                <button class="sort-trigger" type="button">País</button>
+              </th>
+              <th data-sort-field="continente" aria-sort="none">
+                <button class="sort-trigger" type="button">Continente</button>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+
+    </section>
+  </main>
+
+  <template id="rowTemplate">
+    <tr>
+      <td class="mono code"></td>
+      <td class="name"></td>
+      <td class="location"></td>
+      <td class="zone"></td>
+      <td class="country"></td>
+      <td class="continent"></td>
+    </tr>
+  </template>
+
+  <script src="./assets/js/app.js" defer></script>
+</body>
+</html>

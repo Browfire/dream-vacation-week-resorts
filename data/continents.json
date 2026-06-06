@@ -1,0 +1,98 @@
+{
+  "Africa": [
+    "Egypt",
+    "Kenya",
+    "Morocco",
+    "South Africa",
+    "The Gambia",
+    "Tunisia"
+  ],
+  "Asia": [
+    "Bangladesh",
+    "China",
+    "India",
+    "lndia",
+    "Indonesia",
+    "Israel",
+    "Malaysia",
+    "Nepal",
+    "Philippines",
+    "Thailand",
+    "Turkey",
+    "United Arab Emirates",
+    "Vietnam"
+  ],
+  "Europe": [
+    "Andorra",
+    "Austria",
+    "Belgium",
+    "Croatia",
+    "Cyprus",
+    "Finland",
+    "France",
+    "Germany",
+    "Greece",
+    "Hungary",
+    "Ireland",
+    "Italy",
+    "Malta",
+    "Portugal",
+    "Romania",
+    "Slovakia",
+    "Spain",
+    "Sweden",
+    "Switzerland",
+    "United Kingdom"
+  ],
+  "North America": [
+    "Canada",
+    "Hawai`i",
+    "Mexico",
+    "The Cove",
+    "USA"
+  ],
+  "Central America": [
+    "Belize",
+    "Costa Rica",
+    "Guatemala",
+    "Honduras",
+    "Panama"
+  ],
+  "Caribbean": [
+    "Antigua",
+    "Aruba",
+    "Bahamas",
+    "Barbados",
+    "Bermuda",
+    "Cayman Islands",
+    "Curaçao",
+    "Dominica",
+    "Dominican Republic",
+    "Dutch Caribbean",
+    "Grenada",
+    "Jamaica",
+    "Puerto Rico",
+    "Saint Lucia",
+    "St. Kitts",
+    "US Virgin Islands"
+  ],
+  "Oceania": [
+    "Australia",
+    "Fiji",
+    "New Caledonia",
+    "New Zealand",
+    "Vanuatu"
+  ],
+  "South America": [
+    "Argentina",
+    "Bolivia",
+    "Brazil",
+    "Chile",
+    "Colombia",
+    "Ecuador",
+    "Peru",
+    "Suriname",
+    "Uruguay",
+    "Venezuela"
+  ]
+}
