@@ -2,6 +2,7 @@ const state = {
   source: null,
   rows: [],
   filtered: [],
+  marked: new Set(),
   countries: [],
   continentGroups: {},
   continentByCountry: {},
@@ -10,6 +11,8 @@ const state = {
     order: "asc"
   }
 };
+
+const MARKED_STORAGE_KEY = "dvw.markedResorts.v1";
 
 const CONTINENT_ORDER = [
   "North America",
@@ -30,8 +33,10 @@ const ui = {
   codeFilter: document.getElementById("codeFilter"),
   nameFilter: document.getElementById("nameFilter"),
   cityFilter: document.getElementById("cityFilter"),
+  markedOnlyFilter: document.getElementById("markedOnlyFilter"),
   resetFilters: document.getElementById("resetFilters"),
   exportCsv: document.getElementById("exportCsv"),
+  tableWrap: document.querySelector(".table-wrap"),
   resultsBody: document.getElementById("resultsBody"),
   rowTemplate: document.getElementById("rowTemplate"),
   sortHeaders: Array.from(document.querySelectorAll("th[data-sort-field]"))
@@ -49,6 +54,59 @@ function decodeHtml(text) {
 
 function fmtNumber(value) {
   return new Intl.NumberFormat("es-ES").format(value);
+}
+
+function resortKey(row) {
+  if (row._key) {
+    return row._key;
+  }
+  return [normalize(row.codigo), normalize(row.pais), normalize(decodeHtml(row.nombre))].join("|");
+}
+
+function loadMarked() {
+  try {
+    const raw = localStorage.getItem(MARKED_STORAGE_KEY);
+    if (!raw) {
+      return new Set();
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return new Set();
+    }
+
+    return new Set(parsed.map((item) => String(item)));
+  } catch (err) {
+    console.warn("No se pudo leer el almacenamiento local de marcados:", err);
+    return new Set();
+  }
+}
+
+function persistMarked() {
+  try {
+    localStorage.setItem(MARKED_STORAGE_KEY, JSON.stringify([...state.marked]));
+  } catch (err) {
+    console.warn("No se pudo guardar el almacenamiento local de marcados:", err);
+  }
+}
+
+function isMarked(row) {
+  return state.marked.has(resortKey(row));
+}
+
+function toggleMarkedByKey(key) {
+  if (state.marked.has(key)) {
+    state.marked.delete(key);
+  } else {
+    state.marked.add(key);
+  }
+  persistMarked();
+}
+
+function syncMarkedWithRows() {
+  const availableKeys = new Set(state.rows.map((row) => resortKey(row)));
+  state.marked = new Set([...state.marked].filter((key) => availableKeys.has(key)));
+  persistMarked();
 }
 
 function byCountry(country) {
@@ -79,6 +137,25 @@ function byCity(city) {
 function byCode(code) {
   const key = normalize(code);
   return state.rows.filter((r) => normalize(r.codigo) === key);
+}
+
+function byMarked() {
+  return state.rows.filter((r) => state.marked.has(resortKey(r)));
+}
+
+function renderWithTransition() {
+  if (!ui.tableWrap) {
+    render();
+    return;
+  }
+
+  ui.tableWrap.classList.add("is-updating");
+  requestAnimationFrame(() => {
+    render();
+    requestAnimationFrame(() => {
+      ui.tableWrap.classList.remove("is-updating");
+    });
+  });
 }
 
 function buildContinentIndex(groups) {
@@ -148,6 +225,7 @@ function filterRows() {
   const codeTerm = normalize(ui.codeFilter.value);
   const nameTerm = normalize(ui.nameFilter.value);
   const cityTerm = normalize(ui.cityFilter.value);
+  const onlyMarked = ui.markedOnlyFilter.checked;
 
   const subset = state.rows;
 
@@ -170,8 +248,18 @@ function filterRows() {
   if (cityTerm) {
     specific.push(byCity(cityTerm));
   }
+  if (onlyMarked) {
+    specific.push(byMarked());
+  }
 
   state.filtered = intersectMany(subset, specific);
+}
+
+function updateMarkButtonState(button, marked) {
+  button.setAttribute("aria-pressed", String(marked));
+  button.setAttribute("aria-label", marked ? "Quitar marca" : "Marcar resort");
+  button.title = marked ? "Quitar marca" : "Marcar resort";
+  button.textContent = marked ? "★" : "☆";
 }
 
 function sortRows() {
@@ -223,11 +311,20 @@ function renderTable() {
 
   if (!state.filtered.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="6" class="empty">No hay resultados con los filtros actuales.</td>';
+    tr.innerHTML = '<td colspan="7" class="empty">No hay resultados con los filtros actuales.</td>';
     ui.resultsBody.appendChild(tr);
   } else {
     state.filtered.forEach((row) => {
       const node = ui.rowTemplate.content.firstElementChild.cloneNode(true);
+      const key = resortKey(row);
+      const markButton = node.querySelector(".mark-toggle");
+      const marked = isMarked(row);
+
+      if (markButton) {
+        markButton.dataset.rowKey = key;
+        updateMarkButtonState(markButton, marked);
+      }
+
       node.querySelector(".code").textContent = row.codigo;
       node.querySelector(".name").textContent = decodeHtml(row.nombre);
       node.querySelector(".location").textContent = decodeHtml(row.ubicacion);
@@ -294,6 +391,7 @@ function resetFilters() {
   ui.codeFilter.value = "";
   ui.nameFilter.value = "";
   ui.cityFilter.value = "";
+  ui.markedOnlyFilter.checked = false;
   state.sort.field = "nombre";
   state.sort.order = "asc";
 }
@@ -424,6 +522,10 @@ function bindEvents() {
     });
   });
 
+  ui.markedOnlyFilter.addEventListener("change", () => {
+    renderWithTransition();
+  });
+
   ui.sortHeaders.forEach((th) => {
     const field = th.getAttribute("data-sort-field");
     const trigger = th.querySelector(".sort-trigger");
@@ -439,6 +541,30 @@ function bindEvents() {
 
   ui.exportCsv.addEventListener("click", () => {
     exportFilteredCsv();
+  });
+
+  ui.resultsBody.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const button = target.closest("button.mark-toggle");
+    if (!button) {
+      return;
+    }
+
+    const key = button.dataset.rowKey;
+    if (!key) {
+      return;
+    }
+
+    toggleMarkedByKey(key);
+    updateMarkButtonState(button, state.marked.has(key));
+
+    if (ui.markedOnlyFilter.checked) {
+      render();
+    }
   });
 
   ui.resetFilters.addEventListener("click", () => {
@@ -472,11 +598,14 @@ async function loadData() {
   state.rows = Array.isArray(payload.resorts)
     ? payload.resorts.map((row) => ({
       ...row,
-      continente: continentForCountry(row.pais)
+      continente: continentForCountry(row.pais),
+      _key: [normalize(row.codigo), normalize(row.pais), normalize(decodeHtml(row.nombre))].join("|")
     }))
     : [];
   state.filtered = [...state.rows];
   state.countries = countries();
+  state.marked = loadMarked();
+  syncMarkedWithRows();
 
   const unmapped = [...new Set(state.rows.filter((r) => r.continente === "Uncategorized").map((r) => r.pais))];
   if (unmapped.length) {
@@ -493,7 +622,7 @@ async function bootstrap() {
     bindEvents();
     render();
   } catch (err) {
-    ui.resultsBody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${err.message}</td></tr>`;
+    ui.resultsBody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${err.message}</td></tr>`;
   }
 }
 
