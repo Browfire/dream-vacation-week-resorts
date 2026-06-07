@@ -64,6 +64,10 @@
       </div>
 
       <div class="actions">
+        <label class="inline-check" for="markedOnlyFilter">
+          <input id="markedOnlyFilter" type="checkbox">
+          <span>Solo marcados</span>
+        </label>
         <button id="resetFilters" type="button">Limpiar filtros</button>
       </div>
     </section>
@@ -86,6 +90,7 @@
         <table>
           <thead>
             <tr>
+              <th scope="col" class="mark-col">Marca</th>
               <th data-sort-field="codigo" aria-sort="none">
                 <button class="sort-trigger" type="button">Código</button>
               </th>
@@ -115,6 +120,9 @@
 
   <template id="rowTemplate">
     <tr>
+      <td class="mark">
+        <button class="mark-toggle" type="button" aria-pressed="false" aria-label="Marcar resort" title="Marcar resort">☆</button>
+      </td>
       <td class="mono code"></td>
       <td class="name"></td>
       <td class="location"></td>

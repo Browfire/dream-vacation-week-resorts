@@ -192,7 +192,31 @@ button:focus {
 .actions {
   margin-top: 1.15rem;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.inline-check {
+  margin-top: 0;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink);
+}
+
+.inline-check input[type="checkbox"] {
+  appearance: auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  accent-color: var(--accent);
 }
 
 button {
@@ -272,6 +296,12 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--bg-field);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.table-wrap.is-updating {
+  opacity: 0.72;
+  transform: translateY(2px);
 }
 
 table {
@@ -286,6 +316,34 @@ td {
   padding: 0.68rem;
   border-bottom: 1px solid var(--line-soft);
   vertical-align: top;
+}
+
+.mark-col,
+.mark {
+  width: 68px;
+  text-align: center;
+}
+
+.mark-toggle {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev-2) 84%, transparent);
+  color: var(--muted);
+  border-radius: 8px;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.mark-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2) 88%);
+}
+
+.mark-toggle[aria-pressed="true"] {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--line) 45%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent);
 }
 
 th {
@@ -397,5 +455,11 @@ tr:hover td {
   .results-actions {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-wrap {
+    transition: none;
   }
 }

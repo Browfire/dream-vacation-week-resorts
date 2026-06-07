@@ -25,6 +25,7 @@ Esta pensado para uso operativo y consulta diaria:
    - Codigo exacto
    - Nombre (coincidencia parcial)
    - Ciudad/ubicacion (coincidencia parcial)
+  - Solo marcados (opcional)
 2. Ordenar por columnas:
    - Codigo
    - Nombre
@@ -34,6 +35,7 @@ Esta pensado para uso operativo y consulta diaria:
    - Continente
 3. Limpiar todos los filtros con un solo clic.
 4. Exportar en CSV solo los resultados visibles tras aplicar filtros y orden.
+5. Marcar resorts dentro del listado y conservar esas marcas localmente en el navegador.
 
 ## Como funciona internamente
 
@@ -45,7 +47,16 @@ La aplicacion es 100% cliente (frontend):
   - carga de datos JSON via `fetch`
   - logica de filtros y ordenamiento
   - renderizado dinamico de la tabla
+  - marcado persistente de resorts usando `localStorage`
   - exportacion de resultados en CSV
+
+## Persistencia local de marcados
+
+La app guarda las marcas de resorts en `localStorage` del navegador (clave `dvw.markedResorts.v1`).
+
+- Las marcas persisten al recargar la pagina.
+- Las marcas no salen del navegador/dispositivo actual.
+- Si un resort ya no existe en el `data/resorts.json`, su marca se limpia automaticamente para evitar residuos.
 
 En el inicio se cargan dos fuentes de datos:
 
