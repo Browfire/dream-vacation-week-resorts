@@ -1,3 +1,4 @@
+// Runtime state for loaded data, active sorting and local marked selections.
 const state = {
   source: null,
   rows: [],
@@ -13,6 +14,8 @@ const state = {
 };
 
 const MARKED_STORAGE_KEY = "dvw.markedResorts.v1";
+const TABLE_COLUMNS = 7;
+const HTML_PARSER = new DOMParser();
 
 const CONTINENT_ORDER = [
   "North America",
@@ -42,20 +45,61 @@ const ui = {
   sortHeaders: Array.from(document.querySelectorAll("th[data-sort-field]"))
 };
 
+// Show a brief toast confirming a clipboard copy.
+function showCopyToast() {
+  const toast = document.getElementById("copyToast");
+  if (!toast) { return; }
+  clearTimeout(toast._timer);
+  toast.classList.remove("is-visible");
+  void toast.offsetWidth;
+  toast.classList.add("is-visible");
+  toast._timer = setTimeout(() => toast.classList.remove("is-visible"), 1400);
+}
+
+// Normalize text values for case-insensitive matching.
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+// Decode HTML entities from source strings.
 function decodeHtml(text) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(String(text || ""), "text/html");
+  const doc = HTML_PARSER.parseFromString(String(text || ""), "text/html");
   return doc.documentElement.textContent || "";
 }
 
+// Format counts for labels using Spanish locale.
 function fmtNumber(value) {
   return new Intl.NumberFormat("es-ES").format(value);
 }
 
+/**
+ * Build an internal row model with derived fields for fast render/filter/sort.
+ */
+function normalizeRow(row) {
+  const nombreDecoded = decodeHtml(row.nombre);
+  const ubicacionDecoded = decodeHtml(row.ubicacion);
+  const zonaDecoded = decodeHtml(row.zona);
+  const continente = continentForCountry(row.pais);
+
+  return {
+    ...row,
+    continente,
+    nombreDecoded,
+    ubicacionDecoded,
+    zonaDecoded,
+    _norm: {
+      codigo: normalize(row.codigo),
+      pais: normalize(row.pais),
+      continente: normalize(continente),
+      zona: normalize(zonaDecoded),
+      nombre: normalize(nombreDecoded),
+      ubicacion: normalize(ubicacionDecoded)
+    },
+    _key: [normalize(row.codigo), normalize(row.pais), normalize(nombreDecoded)].join("|")
+  };
+}
+
+// Return a stable key for local persistence of marked rows.
 function resortKey(row) {
   if (row._key) {
     return row._key;
@@ -63,6 +107,7 @@ function resortKey(row) {
   return [normalize(row.codigo), normalize(row.pais), normalize(decodeHtml(row.nombre))].join("|");
 }
 
+// Load marked rows from local storage.
 function loadMarked() {
   try {
     const raw = localStorage.getItem(MARKED_STORAGE_KEY);
@@ -82,6 +127,7 @@ function loadMarked() {
   }
 }
 
+// Persist marked rows to local storage.
 function persistMarked() {
   try {
     localStorage.setItem(MARKED_STORAGE_KEY, JSON.stringify([...state.marked]));
@@ -90,10 +136,12 @@ function persistMarked() {
   }
 }
 
+// Check whether a given row is marked.
 function isMarked(row) {
   return state.marked.has(resortKey(row));
 }
 
+// Toggle mark state for a row key and persist changes.
 function toggleMarkedByKey(key) {
   if (state.marked.has(key)) {
     state.marked.delete(key);
@@ -103,46 +151,16 @@ function toggleMarkedByKey(key) {
   persistMarked();
 }
 
+// Remove orphan marks that no longer exist in current dataset.
 function syncMarkedWithRows() {
   const availableKeys = new Set(state.rows.map((row) => resortKey(row)));
   state.marked = new Set([...state.marked].filter((key) => availableKeys.has(key)));
   persistMarked();
 }
 
-function byCountry(country) {
-  const key = normalize(country);
-  return state.rows.filter((r) => normalize(r.pais) === key);
-}
-
-function byZone(zone) {
-  const key = normalize(zone);
-  return state.rows.filter((r) => normalize(r.zona) === key);
-}
-
-function byContinent(continent) {
-  const key = normalize(continent);
-  return state.rows.filter((r) => normalize(r.continente) === key);
-}
-
-function byName(name) {
-  const key = normalize(name);
-  return state.rows.filter((r) => normalize(r.nombre).includes(key));
-}
-
-function byCity(city) {
-  const key = normalize(city);
-  return state.rows.filter((r) => normalize(r.ubicacion).includes(key));
-}
-
-function byCode(code) {
-  const key = normalize(code);
-  return state.rows.filter((r) => normalize(r.codigo) === key);
-}
-
-function byMarked() {
-  return state.rows.filter((r) => state.marked.has(resortKey(r)));
-}
-
+/**
+ * Render results with a subtle transition for smoother perceived updates.
+ */
 function renderWithTransition() {
   if (!ui.tableWrap) {
     render();
@@ -158,6 +176,7 @@ function renderWithTransition() {
   });
 }
 
+// Build country-to-continent lookup from grouped source data.
 function buildContinentIndex(groups) {
   const index = {};
   Object.entries(groups || {}).forEach(([continent, countriesInContinent]) => {
@@ -168,10 +187,12 @@ function buildContinentIndex(groups) {
   return index;
 }
 
+// Resolve continent for country with fallback category.
 function continentForCountry(country) {
   return state.continentByCountry[country] || "Uncategorized";
 }
 
+// Aggregate countries and their row counts.
 function countries(rows = state.rows) {
   const counts = {};
   rows.forEach((r) => {
@@ -183,10 +204,11 @@ function countries(rows = state.rows) {
     .sort((a, b) => b.count - a.count);
 }
 
+// Aggregate zones and their row counts.
 function zones(rows = state.rows) {
   const counts = {};
   rows.forEach((r) => {
-    counts[r.zona] = (counts[r.zona] || 0) + 1;
+    counts[r.zonaDecoded] = (counts[r.zonaDecoded] || 0) + 1;
   });
 
   return Object.entries(counts)
@@ -194,6 +216,7 @@ function zones(rows = state.rows) {
     .sort((a, b) => a.zone.localeCompare(b.zone));
 }
 
+// Aggregate continents and their row counts.
 function continents(rows = state.rows) {
   const counts = {};
   rows.forEach((r) => {
@@ -205,56 +228,55 @@ function continents(rows = state.rows) {
     .sort((a, b) => a.continent.localeCompare(b.continent));
 }
 
-function intersectMany(base, groups) {
-  if (!groups.length) {
-    return base;
-  }
-
-  let output = base;
-  groups.forEach((group) => {
-    const bucket = new Set(group);
-    output = output.filter((item) => bucket.has(item));
-  });
-  return output;
+// Read all current UI filters into a normalized object.
+function buildActiveFilters() {
+  return {
+    continent: normalize(ui.continentFilter.value),
+    country: normalize(ui.countryFilter.value),
+    zone: normalize(ui.zoneFilter.value),
+    code: normalize(ui.codeFilter.value),
+    name: normalize(ui.nameFilter.value),
+    city: normalize(ui.cityFilter.value),
+    onlyMarked: ui.markedOnlyFilter.checked
+  };
 }
 
+// Evaluate all active filters in one pass to avoid repeated full-array scans.
+function matchesFilters(row, filters) {
+  if (filters.continent && row._norm.continente !== filters.continent) {
+    return false;
+  }
+  if (filters.country && row._norm.pais !== filters.country) {
+    return false;
+  }
+  if (filters.zone && row._norm.zona !== filters.zone) {
+    return false;
+  }
+  if (filters.code && row._norm.codigo !== filters.code) {
+    return false;
+  }
+  if (filters.name && !row._norm.nombre.includes(filters.name)) {
+    return false;
+  }
+  if (filters.city && !row._norm.ubicacion.includes(filters.city)) {
+    return false;
+  }
+  if (filters.onlyMarked && !state.marked.has(resortKey(row))) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Build the filtered subset by applying all active filters in one pass.
+ */
 function filterRows() {
-  const continentTerm = normalize(ui.continentFilter.value);
-  const countryTerm = normalize(ui.countryFilter.value);
-  const zoneTerm = normalize(ui.zoneFilter.value);
-  const codeTerm = normalize(ui.codeFilter.value);
-  const nameTerm = normalize(ui.nameFilter.value);
-  const cityTerm = normalize(ui.cityFilter.value);
-  const onlyMarked = ui.markedOnlyFilter.checked;
-
-  const subset = state.rows;
-
-  const specific = [];
-  if (continentTerm) {
-    specific.push(byContinent(continentTerm));
-  }
-  if (countryTerm) {
-    specific.push(byCountry(countryTerm));
-  }
-  if (zoneTerm) {
-    specific.push(byZone(zoneTerm));
-  }
-  if (codeTerm) {
-    specific.push(byCode(codeTerm));
-  }
-  if (nameTerm) {
-    specific.push(byName(nameTerm));
-  }
-  if (cityTerm) {
-    specific.push(byCity(cityTerm));
-  }
-  if (onlyMarked) {
-    specific.push(byMarked());
-  }
-
-  state.filtered = intersectMany(subset, specific);
+  const activeFilters = buildActiveFilters();
+  state.filtered = state.rows.filter((row) => matchesFilters(row, activeFilters));
 }
 
+// Keep mark button attributes and text in sync with mark state.
 function updateMarkButtonState(button, marked) {
   button.setAttribute("aria-pressed", String(marked));
   button.setAttribute("aria-label", marked ? "Quitar marca" : "Marcar resort");
@@ -262,13 +284,16 @@ function updateMarkButtonState(button, marked) {
   button.textContent = marked ? "★" : "☆";
 }
 
+/**
+ * Sort the filtered rows using current sort field and direction.
+ */
 function sortRows() {
   const field = state.sort.field;
   const direction = state.sort.order === "asc" ? 1 : -1;
 
   state.filtered.sort((a, b) => {
-    const av = normalize(a[field]);
-    const bv = normalize(b[field]);
+    const av = a._norm[field] || normalize(a[field]);
+    const bv = b._norm[field] || normalize(b[field]);
 
     if (av < bv) {
       return -1 * direction;
@@ -282,6 +307,7 @@ function sortRows() {
   });
 }
 
+// Reflect current sort state in column header accessibility attributes.
 function renderSortHeaders() {
   ui.sortHeaders.forEach((th) => {
     const field = th.getAttribute("data-sort-field");
@@ -297,6 +323,7 @@ function renderSortHeaders() {
   });
 }
 
+// Toggle sorting rules when a sortable header is clicked.
 function setSort(field) {
   if (state.sort.field === field) {
     state.sort.order = state.sort.order === "asc" ? "desc" : "asc";
@@ -306,12 +333,15 @@ function setSort(field) {
   }
 }
 
+/**
+ * Render table rows based on current filtered and sorted state.
+ */
 function renderTable() {
   ui.resultsBody.innerHTML = "";
 
   if (!state.filtered.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="7" class="empty">No hay resultados con los filtros actuales.</td>';
+    tr.innerHTML = `<td colspan="${TABLE_COLUMNS}" class="empty">No hay resultados con los filtros actuales.</td>`;
     ui.resultsBody.appendChild(tr);
   } else {
     state.filtered.forEach((row) => {
@@ -326,9 +356,9 @@ function renderTable() {
       }
 
       node.querySelector(".code").textContent = row.codigo;
-      node.querySelector(".name").textContent = decodeHtml(row.nombre);
-      node.querySelector(".location").textContent = decodeHtml(row.ubicacion);
-      node.querySelector(".zone").textContent = decodeHtml(row.zona);
+      node.querySelector(".name").textContent = row.nombreDecoded;
+      node.querySelector(".location").textContent = row.ubicacionDecoded;
+      node.querySelector(".zone").textContent = row.zonaDecoded;
       node.querySelector(".country").textContent = row.pais;
       node.querySelector(".continent").textContent = row.continente;
       ui.resultsBody.appendChild(node);
@@ -337,11 +367,15 @@ function renderTable() {
 
 }
 
+// Escape and quote a value for CSV output.
 function toCsvCell(value) {
   const normalized = String(value || "").replace(/"/g, '""');
   return `"${normalized}"`;
 }
 
+/**
+ * Export current filtered view as a CSV file.
+ */
 function exportFilteredCsv() {
   if (!state.filtered.length) {
     return;
@@ -353,9 +387,9 @@ function exportFilteredCsv() {
   state.filtered.forEach((row) => {
     lines.push([
       toCsvCell(row.codigo),
-      toCsvCell(decodeHtml(row.nombre)),
-      toCsvCell(decodeHtml(row.ubicacion)),
-      toCsvCell(decodeHtml(row.zona)),
+      toCsvCell(row.nombreDecoded),
+      toCsvCell(row.ubicacionDecoded),
+      toCsvCell(row.zonaDecoded),
       toCsvCell(row.pais),
       toCsvCell(row.continente)
     ].join(","));
@@ -374,7 +408,11 @@ function exportFilteredCsv() {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Run the full render pipeline and update action states.
+ */
 function render() {
+  // Keep render deterministic: filter, sort, then paint.
   filterRows();
   sortRows();
   renderSortHeaders();
@@ -382,6 +420,9 @@ function render() {
   ui.exportCsv.disabled = state.filtered.length === 0;
 }
 
+/**
+ * Reset all filters and restore default sorting.
+ */
 function resetFilters() {
   ui.continentFilter.value = "";
   ui.countryFilter.value = "";
@@ -396,6 +437,9 @@ function resetFilters() {
   state.sort.order = "asc";
 }
 
+/**
+ * Populate continent filter options with aggregated counts.
+ */
 function mountContinentFilter() {
   ui.continentFilter.innerHTML = '<option value="">Todos</option>';
   const data = continents();
@@ -413,6 +457,9 @@ function mountContinentFilter() {
   });
 }
 
+/**
+ * Populate country filter options, grouped by continent when no continent is selected.
+ */
 function mountCountryFilter() {
   const selectedContinent = ui.continentFilter.value;
   const previousCountry = ui.countryFilter.value;
@@ -464,6 +511,9 @@ function mountCountryFilter() {
   ui.countryFilter.value = countryStillAvailable ? previousCountry : "";
 }
 
+/**
+ * Populate zone filter options based on selected continent/country scope.
+ */
 function mountZoneFilter() {
   const previousZone = ui.zoneFilter.value;
   const selectedContinent = ui.continentFilter.value;
@@ -491,36 +541,31 @@ function mountZoneFilter() {
   ui.zoneFilter.value = zoneStillAvailable ? previousZone : "";
 }
 
+/**
+ * Attach UI event handlers for filters, sorting, marking and export actions.
+ */
 function bindEvents() {
-  [
-    ui.continentFilter,
-    ui.countryFilter,
-    ui.zoneFilter,
-    ui.codeFilter,
-    ui.nameFilter,
-    ui.cityFilter
-  ].forEach((el) => {
-    el.addEventListener("input", () => {
-      if (el === ui.continentFilter) {
-        mountCountryFilter();
-        mountZoneFilter();
-      }
-      if (el === ui.countryFilter) {
-        mountZoneFilter();
-      }
-      render();
-    });
-    el.addEventListener("change", () => {
-      if (el === ui.continentFilter) {
-        mountCountryFilter();
-        mountZoneFilter();
-      }
-      if (el === ui.countryFilter) {
-        mountZoneFilter();
-      }
-      render();
-    });
-  });
+  const onContinentChange = () => {
+    mountCountryFilter();
+    mountZoneFilter();
+    render();
+  };
+
+  const onCountryChange = () => {
+    mountZoneFilter();
+    render();
+  };
+
+  const onDirectFilterChange = () => {
+    render();
+  };
+
+  ui.continentFilter.addEventListener("change", onContinentChange);
+  ui.countryFilter.addEventListener("change", onCountryChange);
+  ui.zoneFilter.addEventListener("change", onDirectFilterChange);
+  ui.codeFilter.addEventListener("input", onDirectFilterChange);
+  ui.nameFilter.addEventListener("input", onDirectFilterChange);
+  ui.cityFilter.addEventListener("input", onDirectFilterChange);
 
   ui.markedOnlyFilter.addEventListener("change", () => {
     renderWithTransition();
@@ -549,6 +594,17 @@ function bindEvents() {
       return;
     }
 
+    const copyCell = target.closest("td.name, td.location");
+    if (copyCell) {
+      navigator.clipboard.writeText(copyCell.textContent.trim()).then(() => {
+        copyCell.classList.remove("copied");
+        void copyCell.offsetWidth;
+        copyCell.classList.add("copied");
+        showCopyToast();
+      });
+      return;
+    }
+
     const button = target.closest("button.mark-toggle");
     if (!button) {
       return;
@@ -573,6 +629,9 @@ function bindEvents() {
   });
 }
 
+/**
+ * Load remote datasets, normalize rows and initialize runtime state.
+ */
 async function loadData() {
   const [resortsResponse, continentsResponse] = await Promise.all([
     fetch("./data/resorts.json", { cache: "no-store" }),
@@ -596,11 +655,7 @@ async function loadData() {
   state.continentGroups = continents;
   state.continentByCountry = buildContinentIndex(continents);
   state.rows = Array.isArray(payload.resorts)
-    ? payload.resorts.map((row) => ({
-      ...row,
-      continente: continentForCountry(row.pais),
-      _key: [normalize(row.codigo), normalize(row.pais), normalize(decodeHtml(row.nombre))].join("|")
-    }))
+    ? payload.resorts.map((row) => normalizeRow(row))
     : [];
   state.filtered = [...state.rows];
   state.countries = countries();
@@ -613,6 +668,9 @@ async function loadData() {
   }
 }
 
+/**
+ * App entrypoint: load data, mount controls, bind events and render.
+ */
 async function bootstrap() {
   try {
     await loadData();
@@ -622,7 +680,7 @@ async function bootstrap() {
     bindEvents();
     render();
   } catch (err) {
-    ui.resultsBody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${err.message}</td></tr>`;
+    ui.resultsBody.innerHTML = `<tr><td colspan="${TABLE_COLUMNS}" class="empty">Error: ${err.message}</td></tr>`;
   }
 }
 
