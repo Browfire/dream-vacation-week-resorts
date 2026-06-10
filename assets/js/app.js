@@ -45,6 +45,17 @@ const ui = {
   sortHeaders: Array.from(document.querySelectorAll("th[data-sort-field]"))
 };
 
+// Show a brief toast confirming a clipboard copy.
+function showCopyToast() {
+  const toast = document.getElementById("copyToast");
+  if (!toast) { return; }
+  clearTimeout(toast._timer);
+  toast.classList.remove("is-visible");
+  void toast.offsetWidth;
+  toast.classList.add("is-visible");
+  toast._timer = setTimeout(() => toast.classList.remove("is-visible"), 1400);
+}
+
 // Normalize text values for case-insensitive matching.
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
@@ -580,6 +591,17 @@ function bindEvents() {
   ui.resultsBody.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const copyCell = target.closest("td.name, td.location");
+    if (copyCell) {
+      navigator.clipboard.writeText(copyCell.textContent.trim()).then(() => {
+        copyCell.classList.remove("copied");
+        void copyCell.offsetWidth;
+        copyCell.classList.add("copied");
+        showCopyToast();
+      });
       return;
     }
 
